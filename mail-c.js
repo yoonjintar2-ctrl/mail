@@ -775,10 +775,14 @@ function renderRead(force) {
         </div>
       </div>
     </div>
-    ${attsOf(m).length ? `<div class="attbar"><b>${ico('clip', 16)} 첨부 ${attsOf(m).length}</b>${attsOf(m).map(([[t, n, s], i]) => `<span class="attw"><span class="att" data-ai="${i}" title="${esc(n)} · 누르면 다운로드">${ftIcon(t, 17, n)}${esc(n)} <small>${s}</small></span><button class="attdrv${m.real && (store.get('drive-saved', {}))[m.gid + ':' + n] ? ' done' : ''}" data-drv="${i}" title="${m.real && (store.get('drive-saved', {}))[m.gid + ':' + n] ? '드라이브에 추가됨 · 누르면 드라이브에서 열기' : '내 드라이브에 추가'}">${ico('drive', 15)}</button></span>`).join('')}</div>` : ''}
+    ${attsOf(m).length ? `<div class="attbar${st.attFull && st.attFull.has(m.id) ? ' full' : ''}"><b>${ico('clip', 16)} 첨부 ${attsOf(m).length}</b><div class="attgrid">${attsOf(m).map(([[t, n, s], i]) => `<span class="attw"><span class="att" data-ai="${i}" title="${esc(n)} · 누르면 다운로드">${ftIcon(t, 17, n)}<span class="an">${esc(n)}</span><small>${s}</small></span><button class="attdrv${m.real && (store.get('drive-saved', {}))[m.gid + ':' + n] ? ' done' : ''}" data-drv="${i}" title="${m.real && (store.get('drive-saved', {}))[m.gid + ':' + n] ? '드라이브에 추가됨 · 누르면 드라이브에서 열기' : '내 드라이브에 추가'}">${ico('drive', 15)}</button></span>`).join('')}</div><button class="attmore" data-act="attmore" hidden>${st.attFull && st.attFull.has(m.id) ? '접기' : '펼치기'}</button></div>` : ''}
     ${m.deleted ? `<div class="dbanner delb"><span>${ico('trash', 16)} 삭제한 메일이에요</span><button data-act="restore">되살리기</button></div>` : ''}
     ${m.draft ? `<div class="dbanner"><span>${ico('pen', 16)} 이 대화에 작성 중이던 답장이 있어요</span><button data-act="draft">이어서 쓰기</button><button class="ib" data-act="deldraft" title="작성 중이던 메일 삭제">${ico('trash', 17)}</button></div>` : ''}
     <div class="rbody">${m.real && !m.full ? '<div class="blank" style="padding:40px 0">본문 불러오는 중…</div>' : m.html ? '<iframe class="mailhtml" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>' : `<div class="txt">${esc(m.body)}</div>${prevHtml(m.prev, 0)}`}</div>`;
+  // 첨부 이름이 잘렸으면(… 표시) [펼치기]를 보여 줌 — 펼치면 한 줄에 하나씩 전체 이름
+  requestAnimationFrame(() => { const bar = $('#view .attbar'); if (!bar) return; const btn = $('.attmore', bar);
+    const cut = bar.classList.contains('full') || $$('.att .an', bar).some(x => x.scrollWidth > x.clientWidth + 1);
+    if (btn) btn.hidden = !cut; });
   const fr = $('#view iframe.mailhtml');
   if (fr) {
     fr.addEventListener('load', () => { try { const d = fr.contentDocument; fr.style.height = Math.max(d.documentElement.scrollHeight, d.body.scrollHeight) + 20 + 'px'; } catch (e) { fr.style.height = '70vh'; } });
@@ -1999,11 +2003,24 @@ async function downloadAtt(m, a) {
 // 로딩·다시 로그인 화면 (예시 메일이 잠깐 보였다 바뀌는 것 방지)
 function bootScreen(mode, msg) {
   let el = $('#boot');
-  if (mode === 'off') { if (el) el.remove(); return; }
+  if (mode === 'off') { if (el && !el.classList.contains('out')) { el.classList.add('out'); setTimeout(() => el.remove(), 420); } return; }
+  if (el && el.classList.contains('out')) { el.remove(); el = null; }
   if (!el) { el = document.createElement('div'); el.id = 'boot'; document.body.append(el); }
   const c = store.get('connected', null) || {};
   el.innerHTML = `<div class="bootbox">${mode === 'loading' ? '' : `<div class="logo">${ico('env', 44)}</div>`}<h2>JIN-mail</h2>${mode === 'loading'
-    ? `<div class="envani"><svg viewBox="0 0 120 96" width="120" height="96"><path d="M18 44h84v42H18z" fill="#eef0f3" stroke="#80868b" stroke-width="2" stroke-linejoin="round"/><path class="f2" d="M18 44l42 28 42-28z" fill="#e4e7ec" stroke="#80868b" stroke-width="2" stroke-linejoin="round"/><g class="letter"><rect x="28" y="34" width="64" height="44" rx="3" fill="#fff" stroke="#80868b" stroke-width="2"/><path d="M38 46h44M38 54h44M38 62h28" stroke="#b5bac2" stroke-width="2.4" stroke-linecap="round"/></g><path d="M18 44l42 26 42-26v42H18z" fill="#f6f7f9" stroke="#80868b" stroke-width="2" stroke-linejoin="round"/><path class="f1" d="M18 44l42 28 42-28z" fill="#e4e7ec" stroke="#80868b" stroke-width="2" stroke-linejoin="round"/></svg></div><p id="bootMsg">${esc(msg || 'Gmail에서 메일을 불러오는 중…')}</p>`
+    ? `<div class="envani"><svg viewBox="0 0 140 124" width="140" height="124" aria-hidden="true">
+      <ellipse class="eshadow" cx="70" cy="114" rx="44" ry="5" fill="#d7dbe2"/>
+      <g class="ebody">
+        <path class="bf" d="M20 61Q20 52 29 52H111Q120 52 120 61L76 84Q70 87.5 64 84Z" fill="#dfe3e9" stroke="#5f6368" stroke-width="3.2" stroke-linejoin="round"/>
+        <rect x="20" y="52" width="100" height="52" rx="8" fill="#e9ecf0" stroke="#5f6368" stroke-width="3.2"/>
+        <g class="letter"><rect x="37" y="40" width="66" height="56" rx="5" fill="#fff" stroke="#5f6368" stroke-width="3"/>
+          <path class="ln l1" d="M47 53h46" stroke="#0b57d0" stroke-width="3.2" stroke-linecap="round"/>
+          <path class="ln l2" d="M47 63h46" stroke="#b5bac2" stroke-width="3.2" stroke-linecap="round"/>
+          <path class="ln l3" d="M47 73h28" stroke="#b5bac2" stroke-width="3.2" stroke-linecap="round"/></g>
+        <path d="M20 64L64 87Q70 90.5 76 87L120 64V96Q120 104 112 104H28Q20 104 20 96Z" fill="#f6f7f9" stroke="#5f6368" stroke-width="3.2" stroke-linejoin="round"/>
+        <path d="M25 101L58 82M115 101L82 82" stroke="#c3c8cf" stroke-width="2.2" stroke-linecap="round"/>
+        <path class="ff" d="M20 61Q20 52 29 52H111Q120 52 120 61L76 84Q70 87.5 64 84Z" fill="#e4e7ec" stroke="#5f6368" stroke-width="3.2" stroke-linejoin="round"/>
+      </g></svg></div><p id="bootMsg">${esc(msg || 'Gmail에서 메일을 불러오는 중…')}</p>`
     : `<p>${esc(msg || (c.email ? c.email + ' 로그인이 만료됐어요' : 'Gmail 계정 연결이 필요해요'))}</p><button class="btn pri gbtn" id="bootGo">${ico('env', 18)} Gmail 다시 연결</button><button class="later" id="bootSample">예시 메일로 둘러보기</button>`}</div>`;
   const go = $('#bootGo', el); if (go) go.onclick = () => { bootScreen('loading'); loadReal(true); };
   const sm = $('#bootSample', el); if (sm) sm.onclick = () => { store.set('skip-connect', true); location.hash = ''; MAILS = SAMPLE_MAILS.slice(); BOXES = store.get('boxes', DEFAULT_BOXES); real.expired = false; bootScreen('off'); renderTop(); renderNav(); renderList(); const f = visible()[0]; if (f) openMail(f.id); };
@@ -2145,6 +2162,7 @@ function wire() {
     const att = e.target.closest('.att[data-ai]'); if (att) { previewAtt(MAILS.find(x => x.id === st.open), +att.dataset.ai); return; }
     const b = e.target.closest('[data-act]'); if (!b) return;
     const act = b.dataset.act, m = MAILS.find(x => x.id === st.open);
+    if (act === 'attmore') { st.attFull = st.attFull || new Set(); const bar = b.closest('.attbar'); const on = !bar.classList.contains('full'); bar.classList.toggle('full', on); on ? st.attFull.add(st.open) : st.attFull.delete(st.open); b.textContent = on ? '접기' : '펼치기'; return; }
     if (act === 'popview') { popView(st.open); return; }
     if (act === 'deldraft') { deleteDraft(m); return; }
     if (act === 'restore') { restoreMails([m.id]); return; }
