@@ -40,6 +40,7 @@ const IP = {
   rowX: 'M4 9h16v6H4zM9 12h6', colX: 'M9 4h6v16H9zM12 9v6', tblX: 'M4 5h16v14H4zM9 9l6 6M15 9l-6 6',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2', hide: 'M3 3l18 18M10.6 6.1A10 10 0 0 1 12 6c6 0 10 6 10 6a17 17 0 0 1-3.2 3.8M6.6 6.6C3.7 8.4 2 12 2 12s4 6 10 6a9 9 0 0 0 4.5-1.2',
   read2: 'M3 8l9 6 9-6M3 8v11h18V8l-9-5z', rename: 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4',
+  conv: 'M4 5h11v8H8l-4 3zM9 15v2h7l4 3v-11h-3',
   sub: 'M5 4v10a3 3 0 0 0 3 3h11M15 13l4 4-4 4', env: 'M3 5.5h18v13H3zM3.5 6.5l8.5 6.5 8.5-6.5'
 };
 const ico = (k, s) => `<svg class="i" viewBox="0 0 24 24"${s ? ` style="width:${s}px;height:${s}px"` : ''}><path d="${IP[k]}"/></svg>`;
@@ -164,8 +165,39 @@ const SYS = {
   draft: { name: '작성 중인 메일', ic: 'draft', f: m => !!m.draft },
   all: { name: '전체 메일', ic: 'all', f: () => true }
 };
-const folderFn = k => { if (k === 'all') return () => true; if (SYS[k]) { const sf = SYS[k].f; return m => !m.deleted && sf(m); } const ids = new Set(descIds(k)); const f = m => !m.deleted && ids.has(m.box); f.boxId = k; return f; };
-const folderName = k => SYS[k] ? SYS[k].name : boxPath(k);
+const folderFn = k => { if (k === 'conv') return m => !!(st.conv && st.conv.ids.has(m.id)); if (k === 'all') return () => true; if (SYS[k]) { const sf = SYS[k].f; return m => !m.deleted && sf(m); } const ids = new Set(descIds(k)); const f = m => !m.deleted && ids.has(m.box); f.boxId = k; return f; };
+const folderName = k => k === 'conv' ? '대화 보기' + (st.conv ? ' · ' + st.conv.title : '') : SYS[k] ? SYS[k].name : boxPath(k);
+/* ── 대화로 보기 (2026-10-26) ──
+   같은 Gmail 대화(threadId) + 제목이 같은 답장·전달(같은 사람들끼리)을 한데 모아 시간 순으로 보여 준다. */
+const normSubj = s => String(s || '').replace(/^\s*((re|fw|fwd|aw|wg|답장|회신|전달|답변)\s*(\[\d+\]|\(\d+\))?\s*[:：]\s*|\[(외부|external|ext)\]\s*)+/ig, '').replace(/\s+/g, ' ').trim().toLowerCase();
+let CONV_IDX = null;
+function convIndex() {
+  if (CONV_IDX && CONV_IDX.n === MAILS.length && CONV_IDX.ref === MAILS) return CONV_IDX;
+  const byT = new Map(), byS = new Map();
+  MAILS.forEach(m => { if (m.deleted) return; if (m.threadId) { if (!byT.has(m.threadId)) byT.set(m.threadId, []); byT.get(m.threadId).push(m); }
+    const k = normSubj(m.subj); if (k.length >= 4) { if (!byS.has(k)) byS.set(k, []); byS.get(k).push(m); } });
+  CONV_IDX = { n: MAILS.length, ref: MAILS, byT, byS, cnt: new Map() };
+  return CONV_IDX;
+}
+function convMembers(seed) {
+  const X = convIndex(); const out = new Map();
+  (seed.threadId && X.byT.get(seed.threadId) || [seed]).forEach(m => out.set(m.id, m));
+  const ppl = new Set(); out.forEach(m => [m.from, ...(m.to || []), ...(m.cc || [])].forEach(p => { if (p && p.email && !isMe(p)) ppl.add(p.email); }));
+  const k = normSubj(seed.subj);
+  (X.byS.get(k) || []).forEach(m => { if (out.has(m.id)) return; if ([m.from, ...(m.to || []), ...(m.cc || [])].some(p => p && ppl.has(p.email))) out.set(m.id, m); });
+  return [...out.values()];
+}
+const convCount = m => { const X = convIndex(); if (!X.cnt.has(m.id)) { const mem = convMembers(m); mem.forEach(x => X.cnt.set(x.id, mem.length)); } return X.cnt.get(m.id) || 1; };
+function openConv(id) {
+  const seed = MAILS.find(m => m.id === id); if (!seed) return;
+  const mem = convMembers(seed);
+  const prev = st.folder === 'conv' && st.conv ? st.conv.prev : st.folder;
+  st.conv = { seed: id, ids: new Set(mem.map(m => m.id)), title: seed.subj.replace(/^\s*((re|fw|fwd|답장|회신|전달)\s*[:：]\s*)+/i, ''), prev };
+  st.folder = 'conv'; st.picked.clear(); st.listSig = null;
+  renderNav(); renderTop(); renderList();
+  if (st.open !== id) openMail(id);
+}
+function closeConv() { const back = (st.conv && st.conv.prev) || 'inbox'; st.conv = null; st.folder = back === 'conv' ? 'inbox' : back; st.picked.clear(); renderNav(); renderTop(); renderList(); }
 
 /* ───────── 왼쪽: 폴더·편지함 트리 ───────── */
 function renderNav() {
@@ -366,10 +398,16 @@ function renderTop() {
   const p = f.period.k === 'range' ? fmtD(f.period.from) + '~' + fmtD(f.period.to) : PERIODS.find(x => x[0] === f.period.k)[1];
   set('#fPeriod', 'cal', f.period.k !== 'all', '기간: ' + p);
   const a = f.att.k === 'any' ? '전체' : f.att.k === 'no' ? '없음' : '있음' + (f.att.types.length ? '(' + f.att.types.map(t => ATYPES.find(x => x[0] === t)[1]).join('·') + ')' : '');
-  set('#fAtt', 'clip', f.att.k !== 'any', '첨부: ' + a);
-  set('#fRead', 'eye', f.readf !== 'all', { all: '읽음: 전체', unread: '안 읽은 메일', read: '읽은 메일' }[f.readf]);
-  set('#fFrom', 'from', f.from, '보낸사람: ' + (f.from || '전체'));
-  set('#fTo', 'to', f.to, '받는사람: ' + (f.to || '전체'));
+  // 목록 위 글자 버튼 (보낸사람·받는사람·첨부파일·읽음/안읽음)
+  const pname = e => { if (!e) return ''; const p = peopleFromMails('any').find(x => x.email === e); return p ? p.name : e; };
+  const tf = (id, on, label, tip) => { const b = $(id); b.innerHTML = esc(label) + '<span class="cv">▾</span>'; b.classList.toggle('on', !!on); b.title = tip; };
+  tf('#fFrom', f.from, f.from ? '보낸사람: ' + pname(f.from) : '보낸사람', '보낸사람: ' + (f.from || '전체'));
+  tf('#fTo', f.to, f.to ? '받는사람: ' + pname(f.to) : '받는사람', '받는사람(참조 포함): ' + (f.to || '전체'));
+  tf('#fAtt', f.att.k !== 'any', f.att.k === 'any' ? '첨부파일' : '첨부: ' + a, '첨부: ' + a);
+  tf('#fRead', f.readf !== 'all', { all: '읽음/안읽음', unread: '안 읽은 메일', read: '읽은 메일' }[f.readf], '읽음 여부: ' + { all: '전체', unread: '안 읽은 메일', read: '읽은 메일' }[f.readf]);
+  const any4 = f.from || f.to || f.att.k !== 'any' || f.readf !== 'all';
+  const cx = $('#fClear'); if (cx) cx.hidden = !any4;
+  const lf = $('#lfilt'); if (lf) { lf.classList.toggle('off', st.folder === 'conv'); lf.title = st.folder === 'conv' ? '대화 보기 중에는 필터가 적용되지 않아요' : ''; }
 }
 function boxPickItems(cur, pick) {
   const items = ['all', 'inbox', 'tome', 'sent', 'draft'].map(k => ({ html: ico(SYS[k].ic, 16) + ' ' + SYS[k].name, on: cur === k, act: () => pick(k) }));
@@ -566,6 +604,7 @@ function renderSugg() {
 /* ───────── 가운데: 목록 ───────── */
 function visible() {
   const f = st.f;
+  if (st.folder === 'conv') return MAILS.filter(folderFn('conv')).sort((a, b) => b.d - a.d || a.t.localeCompare(b.t));
   return MAILS.filter(folderFn(st.folder)).filter(m => {
     const p = f.period, day = dayOf(m);
     if (p.k === 'range') { if (day < p.from || day > p.to) return false; } else if (p.k !== 'all' && m.d > +p.k) return false;
@@ -598,11 +637,26 @@ const ftIcon = (t, sz, name) => {
 const baseName = n => n.replace(/\.[a-z0-9]{1,5}$/i, '');
 // 본문 안에 들어간 그림(서명 로고 등)은 첨부로 안 보여 줌
 const attsOf = m => m.att.map((a, i) => [a, i]).filter(([a]) => !(a[3] && a[3].inline));
-const ftBadges = list => list.map(([[t, n]]) => `<span class="mini" title="${esc(n)}">${ftIcon(t, 15, n)}<span class="nm">${esc(baseName(n))}</span></span>`).join('');
+// 목록에서는 파일 이름 대신 '종류 + 개수'만 (예: 엑셀 2 · PPT 1) — 이름은 마우스를 올리면 보임
+const ATT_KIND = (t, n) => { const e = extOf(n);
+  if (t === 'XLS' || /^(xlsx?|xlsm|csv)$/.test(e)) return ['XLS', '엑셀'];
+  if (t === 'PPT' || /^pptx?$/.test(e)) return ['PPT', 'PPT'];
+  if (t === 'PDF' || e === 'pdf') return ['PDF', 'PDF'];
+  if (/^(hwp|hwpx)$/.test(e)) return ['DOC', '한글'];
+  if (t === 'DOC' || /^(docx?|rtf|txt)$/.test(e)) return ['DOC', '워드'];
+  if (t === 'IMG' || /^(png|jpe?g|gif|bmp|webp|heic)$/.test(e)) return ['IMG', '이미지'];
+  if (t === 'ZIP' || /^(zip|7z|rar|alz|egg)$/.test(e)) return ['ZIP', '압축'];
+  if (/^(mp4|mov|avi|wmv|mkv)$/.test(e)) return [t || 'FILE', '동영상'];
+  return [t || 'FILE', '파일']; };
+const ftBadges = list => {
+  const g = new Map();
+  list.forEach(([[t, n]]) => { const [kt, kl] = ATT_KIND(t, n); if (!g.has(kl)) g.set(kl, { t: kt, n: n, c: 0, names: [] }); const x = g.get(kl); x.c++; x.names.push(n); });
+  return [...g.entries()].map(([kl, x]) => `<span class="mini" title="${esc(x.names.join('\n'))}">${ftIcon(x.t, 15, x.n)}<span class="nm">${esc(kl)} ${x.c}</span></span>`).join('');
+};
 // 첨부 줄이 넘치면: 1) 파일 이름 숨기고 종류 표시만 2) 그래도 넘치면 뒤쪽을 '…+N'으로
 function renderList() {
   const list = visible();
-  const sig = [st.folder, st.q, JSON.stringify(st.f)].join('|');
+  const sig = [st.folder, st.conv ? st.conv.seed : '', st.q, JSON.stringify(st.f)].join('|');
   if (sig !== st.listSig) { st.listSig = sig; st.limit = 200; const r = $('#rows'); if (r) r.scrollTop = 0; }
   const shown = list.slice(0, st.limit || 200);
   [...st.picked].forEach(id => { if (!list.some(m => m.id === id)) st.picked.delete(id); });
@@ -620,7 +674,7 @@ function renderList() {
       <div class="subj">${m.deleted ? '<span class="deltag">삭제됨</span> ' : ''}${m.draft ? '<span class="draft">작성 중</span> ' : ''}${esc(m.subj)}</div>
       <div class="snip">${esc(snipOf(m)) || '&nbsp;'}</div>
       ${attsOf(m).length ? `<div class="l3">${ftBadges(attsOf(m))}</div>` : ''}
-    </div></div>`;
+    </div>${(() => { const n = convCount(m); return `<button class="convb${n > 1 ? ' has' : ''}" data-conv="${m.id}" title="이 메일과 이어진 대화 ${n}통 보기">${ico('conv', 15)}${n > 1 ? n : ''}</button>`; })()}</div>`;
   });
   if (list.length > shown.length) h += `<div class="more-rows">아래로 내리면 ${list.length - shown.length}통 더 보여요</div>`;
   $('#rows').innerHTML = h;
@@ -628,9 +682,20 @@ function renderList() {
 function renderHead(list) {
   // 체크한 메일이 없어도, 목록에서 눌러서 열어 둔 메일이 있으면 그 메일에 적용
   const n = st.picked.size, all = list.length && list.every(m => st.picked.has(m.id)), dis = (n || list.some(m => m.id === st.open)) ? '' : ' disabled';
-  $('#lhead').innerHTML = `<input type="checkbox" class="ck" id="ckAll" title="모두 선택"${all ? ' checked' : ''}>
-    <span class="cnt">${n ? `<b>${n}개 선택</b>` : `${esc(folderName(st.folder))} · ${list.length}통`}</span>
-    <button class="btn" data-b="move"${dis}>${ico('move', 15)} 이동</button><button class="btn" data-b="read"${dis}>읽음</button><button class="btn" data-b="unread"${dis}>안 읽음</button><button class="ib" data-b="del" title="삭제"${dis}>${ico('trash', 17)}</button>`;
+  const lh = $('#lhead'); const conv = st.folder === 'conv' && st.conv;
+  lh.classList.toggle('sel', n > 0);
+  // 대화 보기: 제목·닫기 버튼은 목록 막대 위 별도 줄로 (좁은 폭에서도 제목이 보이게)
+  let cb = $('#convbar');
+  if (conv) {
+    if (!cb) { cb = document.createElement('div'); cb.id = 'convbar'; cb.className = 'convbar'; lh.before(cb); cb.addEventListener('click', e => { if (e.target.closest('[data-b="convclose"]')) closeConv(); }); }
+    cb.innerHTML = `${ico('conv', 16)}<span class="k">대화 보기</span><b title="${esc(st.conv.title)}">${esc(st.conv.title)}</b><span class="n">${list.length}통</span><button class="btn" data-b="convclose" title="원래 보던 편지함으로">${ico('close', 14)} 대화 닫기</button>`;
+  } else if (cb) cb.remove();
+  const label = n ? `<span class="cnt"><b>${n}개 선택</b></span>`
+    : conv ? `<span class="cnt">대화 · ${list.length}통 (오래된 메일부터)</span>`
+    : `<span class="cnt">${esc(folderName(st.folder))} · ${list.length}통</span>`;
+  lh.innerHTML = `<input type="checkbox" class="ck" id="ckAll" title="모두 선택"${all ? ' checked' : ''}>
+    ${label}
+    <button class="btn" data-b="move"${dis}>${ico('move', 15)} 이동</button><button class="btn" data-b="read"${dis}>읽음 처리</button><button class="btn" data-b="unread"${dis}>안읽음 처리</button><button class="ib" data-b="del" title="삭제"${dis}>${ico('trash', 17)}</button>`;
   const ca = $('#ckAll'); if (ca) ca.indeterminate = n > 0 && !all;
 }
 function pickClick(id, e) {
@@ -2023,6 +2088,7 @@ function wire() {
   const tg = (id, fn) => $(id).addEventListener('click', () => toggleMenu($(id), fn));
   tg('#fBox', boxFilterMenu); tg('#fWhere', whereMenu); tg('#fPeriod', periodMenu); tg('#fAtt', attMenu); tg('#fRead', readMenu);
   tg('#fFrom', () => personMenu('from')); tg('#fTo', () => personMenu('to'));
+  $('#fClear').addEventListener('click', () => { Object.assign(st.f, { from: null, to: null, att: { k: 'any', types: [] }, readf: 'all' }); renderTop(); renderList(); });
   // 검색
   const q = $('#q');
   q.addEventListener('input', () => { st.q = q.value; renderList(); });
@@ -2057,6 +2123,7 @@ function wire() {
   const rows = $('#rows');
   rows.addEventListener('scroll', () => { if (rows.scrollTop + rows.clientHeight > rows.scrollHeight - 400 && visible().length > (st.limit || 200)) { st.limit = (st.limit || 200) + 200; const t = rows.scrollTop; renderList(); rows.scrollTop = t; } }, { passive: true });
   rows.addEventListener('click', e => {
+    const cb = e.target.closest('[data-conv]'); if (cb) { e.stopPropagation(); openConv(+cb.dataset.conv); return; }
     const r = e.target.closest('.row'); if (!r) return; const id = +r.dataset.id;
     if (e.target.classList.contains('ck') || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) { if (!e.target.classList.contains('ck')) e.preventDefault(); pickClick(id, e); return; }
     st.anchor = id; openMail(id);
@@ -2070,7 +2137,7 @@ function wire() {
   });
   $('#lhead').addEventListener('click', e => {
     if (e.target.id === 'ckAll') { const list = visible(); const all = list.every(m => st.picked.has(m.id)); list.forEach(m => all ? st.picked.delete(m.id) : st.picked.add(m.id)); renderList(); return; }
-    const b = e.target.closest('[data-b]'); if (b && !b.disabled) bulk(b.dataset.b, b);
+    const b = e.target.closest('[data-b]'); if (b && b.dataset.b === 'convclose') { closeConv(); return; } if (b && !b.disabled) bulk(b.dataset.b, b);
   });
   // 읽기
   $('#view').addEventListener('click', e => {

@@ -55,6 +55,36 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .fbtn.on::after{content:"";position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--blue)}
 .top .sp{flex:1}
 
+/* ── 목록 위 자주 쓰는 필터 (글자 버튼) ── */
+.lfilt{flex:none;display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line2);background:var(--panel);flex-wrap:wrap}
+.lfilt .tf{display:inline-flex;align-items:center;gap:3px;max-width:180px;height:28px;padding:0 10px;border:1px solid #c9ced6;border-radius:14px;background:#fff;color:#3c4043;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lfilt .tf:hover{background:var(--hover)}
+.lfilt .tf .cv{color:var(--mute);font-size:10px;margin-left:1px}
+.lfilt .tf.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue);font-weight:600}
+.lfilt .tf.on .cv{color:var(--blue)}
+.lfilt .tfx{border:0;background:none;color:var(--mute);font-size:12px;padding:0 4px;text-decoration:underline}
+.lfilt .tfx:hover{color:var(--blue)}
+.lfilt.off .tf{opacity:.45}
+/* 선택한 메일이 있으면 위 막대를 파랗게 */
+.lhead{transition:background .12s}
+.lhead.sel{background:var(--blue-m);border-bottom-color:#a8c7fa;color:var(--blue-d)}
+.lhead.sel .cnt b{color:var(--blue-d)}
+/* 대화 보기 */
+.convbar{flex:none;display:flex;align-items:center;gap:7px;padding:8px 10px;background:#eef3fb;border-bottom:1px solid #d6e2f3;color:var(--blue-d);font-size:13px}
+.convbar .k{flex:none;font-weight:700}
+.convbar b{flex:1;min-width:0;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.convbar .n{flex:none;color:var(--sub);font-size:12px}
+.convbar .btn{flex:none;padding:3px 9px;font-size:12px}
+.lhead .convt{display:inline-flex;align-items:center;gap:6px;min-width:0;flex:1;color:var(--ink);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lhead .convt b{overflow:hidden;text-overflow:ellipsis}
+.row{position:relative}
+.row .convb{position:absolute;right:10px;top:31px;display:none;align-items:center;gap:2px;height:20px;padding:0 5px;border:1px solid transparent;border-radius:10px;background:transparent;color:#80868b;font-size:11px;font-weight:600;line-height:1}
+.row .convb.has{display:inline-flex}
+.row .convb svg{width:15px;height:15px}
+.row .convb:hover{border-color:#a8c7fa;background:#fff;color:var(--blue)}
+.row .subj{padding-right:34px}
+.l3.compact .mini .nm{display:inline}  /* 종류+개수는 짧아서 항상 보이게 */
+
 /* ── 본문 3칸 + 경계선 끌기 ── */
 .body{flex:1;min-height:0;display:flex}
 nav{width:var(--w-nav);flex:none;background:var(--panel);overflow:auto;padding:8px 0 20px}
@@ -433,17 +463,13 @@ body.resizing{cursor:col-resize;user-select:none}
   <button class="fbtn" id="fBox" title="편지함"></button>
   <button class="fbtn" id="fWhere" title="검색 범위"></button>
   <button class="fbtn" id="fPeriod" title="기간"></button>
-  <button class="fbtn" id="fAtt" title="첨부"></button>
-  <button class="fbtn" id="fRead" title="읽음 여부"></button>
-  <button class="fbtn" id="fFrom" title="보낸사람"></button>
-  <button class="fbtn" id="fTo" title="받는사람"></button>
   <span class="sp"></span>
   <button class="ib" id="gear" title="설정"></button>
 </div>
 <div class="body">
   <nav id="nav"></nav>
   <div class="split" data-split="nav"></div>
-  <div class="list"><div class="lhead" id="lhead"></div><div class="rows" id="rows"></div></div>
+  <div class="list"><div class="lfilt" id="lfilt"><button class="tf" id="fFrom"></button><button class="tf" id="fTo"></button><button class="tf" id="fAtt"></button><button class="tf" id="fRead"></button><button class="tfx" id="fClear" title="이 필터 모두 해제" hidden>초기화</button></div><div class="lhead" id="lhead"></div><div class="rows" id="rows"></div></div>
   <div class="split" data-split="list"></div>
   <div class="read" id="read">
     <div class="view" id="view"></div>
@@ -472,6 +498,6 @@ body.resizing{cursor:col-resize;user-select:none}
   </div>
 </div>
 <div class="toast" id="toast"><span id="toastT"></span><button id="toastUndo" hidden>되돌리기</button></div>
-<script src="mail-c.js?v=1793011161"></script>
+<script src="mail-c.js?v=1793011629"></script>
 </body>
 </html>
