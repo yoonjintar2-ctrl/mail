@@ -439,19 +439,67 @@ function readMenu() {
   const set = k => { st.f.readf = k; renderTop(); renderList(); };
   menuAt($('#fRead'), [{ label: '전체', on: st.f.readf === 'all', act: () => set('all') }, { label: '안 읽은 메일', on: st.f.readf === 'unread', act: () => set('unread') }, { label: '읽은 메일', on: st.f.readf === 'read', act: () => set('read') }]);
 }
+/* ── 사람 찾기 (2026-10-26) ──
+   예전엔 보낸사람 목록을 CONTACTS(샘플 주소록)에서만 골라서, 실제 Gmail로 받은 사람은 하나도 안 잡혔다.
+   이제 불러온 메일(최근 3개월)의 보낸사람·받는사람에서 직접 모은다.
+   한글 이름은 로마자(choi→최, kim→김…)와 초성(ㅊㅅㅇ)으로도 찾을 수 있다. */
+const RR_I = ['g','kk','n','d','tt','r','m','b','pp','s','ss','','j','jj','ch','k','t','p','h'];
+const RR_V = ['a','ae','ya','yae','eo','e','yeo','ye','o','wa','wae','oe','yo','u','wo','we','wi','yu','eu','ui','i'];
+const RR_F = ['','k','k','k','n','n','n','t','l','k','m','l','l','l','p','l','m','p','p','t','t','ng','t','t','k','t','p','t'];
+const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+const SURNAME_RR = {'김':'kim gim','이':'lee yi rhee li','박':'park bak pak','최':'choi choe','정':'jung jeong chung','강':'kang','조':'cho jo','윤':'yoon yun','장':'jang chang','임':'lim im yim','한':'han','오':'oh o','서':'seo suh','신':'shin sin','권':'kwon gwon','황':'hwang','안':'ahn an','송':'song','류':'ryu yoo yu','유':'yoo yu','전':'jeon jun chun','홍':'hong','고':'ko go','문':'moon mun','양':'yang','손':'son sohn','배':'bae','백':'baek paik','허':'heo huh','남':'nam','심':'shim sim','노':'noh roh no','하':'ha','곽':'kwak','성':'sung seong','차':'cha','주':'joo ju','우':'woo u','구':'koo gu','민':'min','진':'jin','나':'na','지':'ji','엄':'eom um','채':'chae','원':'won','천':'cheon chun','방':'bang','공':'kong gong','현':'hyun hyeon','함':'ham','변':'byun byeon','염':'yeom yum','여':'yeo yuh','추':'choo chu','도':'do doh','소':'so','석':'seok suk','선':'sun seon','설':'seol sul','마':'ma','길':'gil kil','연':'yeon yun','위':'wi wee','표':'pyo','명':'myung myeong','기':'ki gi','반':'ban bahn','왕':'wang','금':'keum geum','옥':'ok','육':'yook yuk','인':'in','맹':'maeng','제':'je','모':'mo','탁':'tak','국':'kook guk','은':'eun','편':'pyun pyeon','용':'yong','경':'kyung gyeong','봉':'bong','부':'boo bu','황보':'hwangbo','남궁':'namgung','선우':'sunwoo','제갈':'jegal','독고':'dokgo'};
+function hangulRR(str) {
+  let out = '';
+  for (const ch of str) { const c = ch.charCodeAt(0) - 0xAC00;
+    if (c < 0 || c > 11171) { out += /[a-z0-9]/i.test(ch) ? ch.toLowerCase() : ''; continue; }
+    out += RR_I[Math.floor(c / 588)] + RR_V[Math.floor((c % 588) / 28)] + RR_F[c % 28]; }
+  return out;
+}
+const hangulCho = str => [...str].map(ch => { const c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c <= 11171 ? CHO[Math.floor(c / 588)] : (/[ㄱ-ㅎ]/.test(ch) ? ch : ''); }).join('');
+function personKeys(p) {
+  if (p._keys) return p._keys;
+  const name = String(p.name || '').normalize('NFC'), nm = name.replace(/\s+/g, '');
+  const keys = [name.toLowerCase(), nm.toLowerCase(), String(p.email || '').toLowerCase()];
+  // '최소영 부장'처럼 뒤에 직함이 붙어도 이름 부분만 로마자로 바꾼다
+  const ko = name.match(/[가-힣]+/g) || []; const TITLE = /^(부장|차장|과장|대리|사원|주임|팀장|실장|이사|상무|전무|대표|국장|본부장|매니저|프로|책임|선임|수석|님)$/;
+  const hk = (ko.find(w => w.length >= 2 && !TITLE.test(w)) || ko.filter(w => !TITLE.test(w)).join('') || '');
+  if (hk) {
+    // 이름에 흔히 쓰는 영문 표기도 함께 (영 young · 정 jung · 성 sung · 현 hyun · 연 yun)
+    const alt = x => x.replace(/yeong/g, 'young').replace(/eong/g, 'ung').replace(/yeon/g, 'yun').replace(/eon/g, 'un').replace(/eo/g, 'u');
+    const full = hangulRR(hk); keys.push(full, alt(full), hangulCho(hk));
+    const sn = SURNAME_RR[hk.slice(0, 2)] && hk.length > 2 ? hk.slice(0, 2) : hk.slice(0, 1);
+    const rest = hangulRR(hk.slice(sn.length));
+    (SURNAME_RR[sn] || '').split(' ').filter(Boolean).forEach(v => { [rest, alt(rest)].forEach(r => keys.push(v + r, r + v)); });
+  }
+  Object.defineProperty(p, '_keys', { value: keys, enumerable: false });
+  return keys;
+}
+function personMatch(p, q) {
+  q = String(q || '').normalize('NFC').trim().toLowerCase(); if (!q) return true;
+  const qq = q.replace(/\s+/g, '');
+  return personKeys(p).some(k => k && (k.includes(q) || k.includes(qq)));
+}
+// kind: 'from'(보낸사람) | 'to'(받는사람·참조) | 'any'
+function peopleFromMails(kind) {
+  const by = new Map();
+  const add = (pp, w) => { if (!pp || !pp.email || isMe(pp)) return; const e = String(pp.email).toLowerCase(); let x = by.get(e);
+    if (!x) { x = { name: pp.name || e.split('@')[0], email: e, n: 0 }; by.set(e, x); }
+    else if (pp.name && pp.name !== e.split('@')[0] && x.name === e.split('@')[0]) x.name = pp.name;   // 이름이 있는 쪽으로
+    x.n += w; };
+  MAILS.forEach(m => { const w = 1 + (m.d < 7 ? 1 : 0); if (kind !== 'to') add(m.from, w); if (kind !== 'from') { (m.to || []).forEach(pp => add(pp, w)); (m.cc || []).forEach(pp => add(pp, w)); } });
+  return [...by.values()].sort((a, b) => b.n - a.n);
+}
 // 보낸사람·받는사람: 최근 많이 주고받은 사람 순 추천 + 이름·주소 입력 자동완성
 function personMenu(kind) {
   const btn = kind === 'from' ? $('#fFrom') : $('#fTo');
-  const cnt = new Map();
-  MAILS.forEach(m => { const ps = kind === 'from' ? [m.from] : [...m.to, ...m.cc]; ps.forEach(p => { if (!isMe(p)) cnt.set(p.email, (cnt.get(p.email) || 0) + 1 + (m.d < 7 ? 1 : 0)); }); });
-  const people = CONTACTS.filter(p => !isMe(p) && cnt.has(p.email)).sort((a, b) => cnt.get(b.email) - cnt.get(a.email));
+  const people = peopleFromMails(kind === 'from' ? 'from' : 'to');
   const node = document.createElement('div');
   node.innerHTML = `<div class="mrow"><input type="text" placeholder="이름이나 메일 주소" autocomplete="off"></div><div class="list2"></div>`;
   const inp = $('input', node), box = $('.list2', node);
   const cur = st.f[kind];
   const draw = () => {
-    const q = inp.value.trim().toLowerCase();
-    const list = (q ? people.filter(p => p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)) : people).slice(0, q ? 12 : 8);
+    const q = inp.value.trim();
+    const list = (q ? people.filter(p => personMatch(p, q)) : people).slice(0, q ? 12 : 8);
     box.innerHTML = `<div class="mi${!cur ? ' on' : ''}" data-e=""><span class="chk">${!cur ? '✓' : ''}</span>전체</div>` + (q ? '' : '<div class="mh">최근 자주 주고받은 사람</div>') +
       list.map(p => `<div class="mi${cur === p.email ? ' on' : ''}" data-e="${esc(p.email)}"><span class="chk">${cur === p.email ? '✓' : ''}</span><i style="width:8px;height:8px;border-radius:50%;background:${dotColor(p.email)}"></i>${esc(p.name)} <small style="color:var(--mute)">${esc(p.email)}</small></div>`).join('') +
       (q && !list.length ? '<div class="mh">맞는 사람이 없어요</div>' : '');
@@ -508,7 +556,7 @@ function renderSugg() {
   const q = st.q.trim(), box = $('#sugg');
   if (!q || document.activeElement !== $('#q')) { box.classList.remove('on'); return; }
   const hl = s => { const i = s.toLowerCase().indexOf(q.toLowerCase()); return i < 0 ? esc(s) : esc(s.slice(0, i)) + '<mark>' + esc(s.slice(i, i + q.length)) + '</mark>' + esc(s.slice(i + q.length)); };
-  const ppl = CONTACTS.filter(p => !isMe(p) && (p.name.includes(q) || p.email.toLowerCase().includes(q.toLowerCase()))).slice(0, 3);
+  const ppl = peopleFromMails('from').filter(p => personMatch(p, q)).slice(0, 3);
   const mails = visible().slice(0, 6);
   box.innerHTML = (ppl.length ? '<div class="sh">사람 — 누르면 보낸사람으로 거르기</div>' + ppl.map(p => `<div class="si" data-p="${esc(p.email)}">${ico('me', 16)}<span class="s1">${hl(p.name)} <small style="color:var(--mute)">${hl(p.email)}</small></span></div>`).join('') : '') +
     (mails.length ? `<div class="sh">메일 · ${esc(folderName(st.folder))}</div>` + mails.map(m => `<div class="si" data-id="${m.id}">${ico('env', 16)}<span class="s1">${hl(m.subj)}</span><span class="s2">${esc(m.from.name)} · ${dateLabel(m)}</span></div>`).join('') : '<div class="sh">맞는 메일이 없어요</div>');
