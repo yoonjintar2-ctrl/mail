@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'; manifest-src 'self'; worker-src 'self'">
+<title>지니메일</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1f2328;--sub:#5f6368;--blue:#0b57d0}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--ink);font-family:"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;padding:16px;box-sizing:border-box}
+main{background:var(--card);border-radius:18px;padding:30px 34px;max-width:440px;width:100%;box-shadow:0 12px 34px rgba(0,0,0,.08);text-align:center;line-height:1.65}
+img{width:72px;height:72px;border-radius:18px;box-shadow:0 8px 20px rgba(11,87,208,.25)}
+h1{font-size:21px;margin:14px 0 6px}p{font-size:14px;color:var(--sub);margin:6px 0}
+button{margin-top:16px;height:46px;padding:0 22px;border:0;border-radius:12px;background:var(--blue);color:#fff;font-family:inherit;font-weight:700;font-size:15px;cursor:pointer}
+button:hover{background:#0842a0}
+ol{text-align:left;font-size:13.5px;color:var(--sub);padding-left:20px;margin:14px 0 0}b{color:var(--ink)}
+.small{font-size:12px;color:#8a9099;margin-top:16px}
+[hidden]{display:none!important}
+a{color:var(--blue)}
+</style></head>
+<body><main>
+<img src="icon-192.png" alt="">
+<section id="opening" hidden><h1>지니메일 여는 중…</h1><p>잠시만요</p></section>
+<section id="noext" hidden><h1>지니메일이 이 크롬에 없어요</h1><p>지니메일 확장 프로그램을 설치한 크롬에서 이 아이콘을 눌러 주세요.</p></section>
+<section id="setup" hidden>
+  <h1>지니메일 아이콘 만들기</h1>
+  <p>버튼 한 번이면 <b>바탕화면·시작 메뉴</b>에 지니메일 아이콘이 생겨요.<br>다음부터는 아이콘만 누르면 지니메일이 바로 열려요.</p>
+  <button id="install">아이콘 만들기</button>
+  <ol id="manual" hidden><li>크롬 주소창 오른쪽 끝의 <b>설치 아이콘</b>을 누르거나</li><li>크롬 메뉴 <b>⋮</b> → <b>전송, 저장 및 공유</b> → <b>페이지를 앱으로 설치</b>를 눌러 주세요.</li></ol>
+  <p class="small">메일이나 로그인 정보는 이 페이지를 거치지 않아요. 아이콘은 이 PC의 지니메일을 여는 일만 해요.</p>
+</section>
+<section id="done" hidden><h1>아이콘을 만들었어요 ✓</h1><p>시작 메뉴와 바탕화면에서 <b>지니메일</b>을 찾을 수 있어요.<br>작업 표시줄에 두려면 아이콘을 <b>오른쪽 클릭 → 작업 표시줄에 고정</b>을 누르세요.</p><p class="small">이 탭은 닫아도 돼요.</p></section>
+</main>
+<script src="open.js"></script>
+</body></html>

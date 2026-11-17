@@ -1,0 +1,16 @@
+{
+  "name": "지니메일",
+  "short_name": "지니메일",
+  "description": "지니메일(크롬 확장 프로그램)을 바로 여는 아이콘",
+  "id": "/open/",
+  "start_url": "/open/?launch=1",
+  "scope": "/open/",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#0b57d0",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
