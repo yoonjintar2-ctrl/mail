@@ -13,11 +13,19 @@ if (isApp) {
   show('opening');
   openJinny().then(ok => { if (ok) setTimeout(() => window.close(), 150); else show('noext'); });
 } else {
-  show('setup'); let prompt = null;
-  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); prompt = e; });
+  // 크롬은 이 페이지를 처음 볼 때 '한 번 이상 클릭 + 30초 이상 보기'가 채워져야 설치 창(beforeinstallprompt)을 줌 → 첫 방문엔 기다렸다가 띄움
+  show('setup'); let prompt = null, waiting = false, timer = 0;
+  const t0 = Date.now(), btn = $('#install');
+  const manual = () => { clearInterval(timer); waiting = false; $('#wait').hidden = true; btn.hidden = true; $('#manualHead').hidden = false; $('#manual').hidden = false; };
+  const ready = () => { clearInterval(timer); waiting = false; $('#wait').hidden = true; btn.disabled = false; btn.textContent = '설치 창 열기'; btn.classList.add('ready'); };
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); prompt = e; if (waiting) ready(); });
   window.addEventListener('appinstalled', () => show('done'));
-  $('#install').addEventListener('click', async () => {
-    if (!prompt) { $('#manual').hidden = false; return; }
-    prompt.prompt(); const r = await prompt.userChoice; prompt = null; if (r && r.outcome === 'accepted') show('done');
+  btn.addEventListener('click', async () => {
+    if (prompt) { const p = prompt; prompt = null; btn.classList.remove('ready'); p.prompt(); const r = await p.userChoice; if (r && r.outcome === 'accepted') show('done'); else { btn.textContent = '아이콘 만들기'; } return; }
+    if (waiting) return;
+    waiting = true; btn.disabled = true; btn.textContent = '설치 준비 중…'; $('#wait').hidden = false;
+    const until = Math.max(t0 + 34000, Date.now() + 6000), limit = until + 12000;
+    const tick = () => { const left = Math.ceil((until - Date.now()) / 1000); $('#sec').textContent = left > 0 ? `(약 ${left}초)` : '(거의 다 됐어요)'; if (Date.now() > limit) manual(); };
+    tick(); timer = setInterval(tick, 500);
   });
 }
