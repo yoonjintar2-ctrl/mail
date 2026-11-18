@@ -15,6 +15,9 @@ if (isApp) {
 } else {
   // 크롬은 이 페이지를 처음 볼 때 '한 번 이상 클릭 + 30초 이상 보기'가 채워져야 설치 창(beforeinstallprompt)을 줌 → 첫 방문엔 기다렸다가 띄움
   show('setup'); let prompt = null, waiting = false, timer = 0;
+  // 11/18 석진님: 이미 설치된 PC에선 크롬이 설치 창을 아예 안 줘서 30초 기다려도 안 생김 → 설치돼 있으면 바로 안내
+  try { if (navigator.getInstalledRelatedApps) navigator.getInstalledRelatedApps().then(a => { if (a && a.length && !prompt) show('already'); }).catch(() => {}); } catch (e) { /* */ }
+  $('#openApp').addEventListener('click', () => { openJinny().then(ok => { if (!ok) show('noext'); }); });
   const t0 = Date.now(), btn = $('#install');
   const manual = () => { clearInterval(timer); waiting = false; $('#wait').hidden = true; btn.hidden = true; $('#manualHead').hidden = false; $('#manual').hidden = false; };
   const ready = () => { clearInterval(timer); waiting = false; $('#wait').hidden = true; btn.disabled = false; btn.textContent = '설치 창 열기'; btn.classList.add('ready'); };
